@@ -4,76 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recommendation System</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <h1 class="text-center">Mauritius Hotel Recommendation</h1>
-        <form id="filter-form" class="mt-4">
-            <div class="mb-3">
-                <label for="filter-text" class="form-label">Search Filter</label>
-                <input type="text" id="filter-text" name="filter-text" class="form-control" placeholder="Enter filter (e.g., family-friendly, beach)">
-            </div>
-            <div class="mb-3">
-                <label for="category" class="form-label">Category</label>
-                <input type="text" id="category" name="category" class="form-control" placeholder="Enter category (optional)">
-            </div>
-            <button type="submit" class="btn btn-primary">Get Recommendations</button>
-        </form>
+    <h1>Recommendation System</h1>
+    <form method="POST" action="/predict">
+        <label for="tags">Tags:</label>
+        <input type="text" id="tags" name="tags" placeholder="luxury, adventure"><br>
 
-        <table class="table table-striped mt-4" id="results-table" style="display: none;">
-            <thead>
+        <label for="category">Category:</label>
+        <input type="text" id="category" name="category" placeholder="hotel, restaurant"><br>
+
+        <label for="cuisine_type">Cuisine Type:</label>
+        <input type="text" id="cuisine_type" name="cuisine_type" placeholder="Indian, French"><br>
+
+        <label for="amenities">Amenities:</label>
+        <input type="text" id="amenities" name="amenities" placeholder="Free WiFi, Parking"><br>
+
+        <label for="wheelchair">Wheelchair Accessible:</label>
+        <select id="wheelchair" name="wheelchair">
+            <option value="no">No</option>
+            <option value="yes">Yes</option>
+        </select><br>
+
+        <label for="rating">Minimum Rating:</label>
+        <input type="number" id="rating" name="rating" step="0.1" placeholder="4.0"><br>
+
+        <button type="submit">Get Recommendations</button>
+    </form>
+
+    {% if recommendations %}
+        <h2>Top Recommendations</h2>
+        <table border="1">
+            <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Rating</th>
+                <th>Address</th>
+                <th>Image</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>URL</th>
+                <th>Popularity Score</th>
+            </tr>
+            {% for rec in recommendations %}
                 <tr>
-                    <th>Name</th>
-                    <th>Address</th>
-                    <th>URL</th>
-                    <th>Rating</th>
-                    <th>Price Range</th>
+                    <td>{{ rec.name }}</td>
+                    <td>{{ rec.category }}</td>
+                    <td>{{ rec.rating }}</td>
+                    <td>{{ rec.address }}</td>
+                    <td><img src="{{ rec.imageUrls }}" alt="Image" width="100"></td>
+                    <td>{{ rec.latitude }}</td>
+                    <td>{{ rec.longitude }}</td>
+                    <td><a href="{{ rec.url }}" target="_blank">Visit</a></td>
+                    <td>{{ rec.popularity_score }}</td>
                 </tr>
-            </thead>
-            <tbody></tbody>
+            {% endfor %}
         </table>
-    </div>
-
-    <script>
-        $(document).ready(function () {
-            $('#filter-form').on('submit', function (e) {
-                e.preventDefault();
-                const filterText = $('#filter-text').val();
-                const category = $('#category').val();
-
-                $.ajax({
-                    url: '/recommend',
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({ filter_text: filterText, category: category }),
-                    success: function (data) {
-                        const tableBody = $('#results-table tbody');
-                        tableBody.empty();
-                        if (data.length > 0) {
-                            data.forEach(row => {
-                                tableBody.append(`
-                                    <tr>
-                                        <td>${row.name}</td>
-                                        <td>${row.address}</td>
-                                        <td><a href="${row.url}" target="_blank">View</a></td>
-                                        <td>${row.rating}</td>
-                                        <td>${row.price_range}</td>
-                                    </tr>
-                                `);
-                            });
-                            $('#results-table').show();
-                        } else {
-                            alert('No results found!');
-                        }
-                    },
-                    error: function (error) {
-                        alert('Error fetching recommendations!');
-                    }
-                });
-            });
-        });
-    </script>
+    {% endif %}
 </body>
 </html>
