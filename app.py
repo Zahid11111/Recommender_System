@@ -35,7 +35,7 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Extract form data
+        # Extract data from form
         tags = request.form.get('tags', '').lower()
         category = request.form.get('category', '').lower()
         cuisine_type = request.form.get('cuisine_type', '').lower()
@@ -43,17 +43,20 @@ def predict():
         wheelchair = request.form.get('wheelchair', 'no').lower()
         rating = float(request.form.get('rating', 0))
 
-        # Combine input text
+        # Combine input text for TF-IDF
         input_text = f"{tags} {category} {cuisine_type} {amenities}"
 
         # Load dataset
-        data = pd.read_csv('mauritiusDataset.csv')  # Ensure the dataset path is correct
+        data = pd.read_csv('mauritiusDataset.csv')
 
-        # Filter data
+        # Filter data for the input rating
         filtered_data = data[data['rating'] >= rating]
+
+        # Filter for wheelchair accessibility if required
         if wheelchair == 'yes':
             filtered_data = filtered_data[filtered_data['wheelchair_accessible'].str.contains('yes', case=False, na=False)]
 
+        # Check if there is data to recommend
         if filtered_data.empty:
             return jsonify({'error': 'No recommendations found for the given criteria.'}), 404
 
@@ -70,12 +73,14 @@ def predict():
         # Get top recommendations
         recommendations = filtered_data.sort_values(by='score', ascending=False).head(10)
         display_columns = ['name', 'category', 'rating', 'address', 'imageUrls', 'latitude', 'longitude', 'url', 'popularity_score']
+        recommendations = recommendations[display_columns].to_dict(orient='records')
 
-        # Send recommendations to the client
-        return render_template('index.html', recommendations=recommendations[display_columns].to_dict(orient='records'))
+        return jsonify({'recommendations': recommendations})
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Log the exception for debugging
+        print(f"Error in /predict: {e}")
+        return jsonify({'error': 'An error occurred while processing your request.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
