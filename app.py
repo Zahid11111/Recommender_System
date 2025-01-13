@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import pandas as pd  # <-- Add this line to import pandas
 import os
-
+import time
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -35,6 +35,10 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
+        start_time = time.time()
+        # Log: Start processing the request
+        print("Processing request...")
+
         # Extract data from form
         tags = request.form.get('tags', '').lower()
         category = request.form.get('category', '').lower()
@@ -43,45 +47,43 @@ def predict():
         wheelchair = request.form.get('wheelchair', 'no').lower()
         rating = float(request.form.get('rating', 0))
 
-        # Combine input text for TF-IDF
-        input_text = f"{tags} {category} {cuisine_type} {amenities}"
+        print(f"Inputs received: Tags={tags}, Category={category}, ...")
 
-        # Load dataset
+        # Load dataset and model
+        start_load = time.time()
         data = pd.read_csv('mauritiusDataset.csv')
+        print(f"Dataset loaded in {time.time() - start_load} seconds")
 
-        # Filter data for the input rating
+        # Preprocess and filter
         filtered_data = data[data['rating'] >= rating]
-
-        # Filter for wheelchair accessibility if required
         if wheelchair == 'yes':
-            filtered_data = filtered_data[filtered_data['wheelchair_accessible'].str.contains('yes', case=False, na=False)]
-
-        # Check if there is data to recommend
+            filtered_data = filtered_data[
+                filtered_data['wheelchair_accessible'].str.contains('yes', case=False, na=False)
+            ]
         if filtered_data.empty:
-            return jsonify({'error': 'No recommendations found for the given criteria.'}), 404
+            return jsonify({'error': 'No recommendations found.'}), 404
 
-        # TF-IDF transformation
+        # Recommendation logic
+        start_rec = time.time()
+        input_text = f"{tags} {category} {cuisine_type} {amenities}"
         input_vec = vectorizer.transform([input_text]).todense()
+        print(f"TF-IDF vectorization completed in {time.time() - start_rec} seconds")
+
         numerical_data = filtered_data[['rating', 'reviews_count', 'popularity_score']].fillna(0).to_numpy()
         input_vec_repeated = np.repeat(input_vec, numerical_data.shape[0], axis=0)
         combined_input = np.hstack([input_vec_repeated, numerical_data])
-
-        # Make predictions
         predictions = model.predict(combined_input)
         filtered_data['score'] = predictions.flatten()
 
-        # Get top recommendations
+        # Sort and return top recommendations
         recommendations = filtered_data.sort_values(by='score', ascending=False).head(10)
-        display_columns = ['name', 'category', 'rating', 'address', 'imageUrls', 'latitude', 'longitude', 'url', 'popularity_score']
-        recommendations = recommendations[display_columns].to_dict(orient='records')
-
-        return jsonify({'recommendations': recommendations})
+        print(f"Recommendation generation completed in {time.time() - start_rec} seconds")
+        return jsonify({'recommendations': recommendations.to_dict(orient='records')})
 
     except Exception as e:
-        # Log the exception for debugging
         print(f"Error in /predict: {e}")
-        return jsonify({'error': 'An error occurred while processing your request.'}), 500
-
+        return jsonify({'error': str(e)}), 500
+    
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))  # Use PORT from environment or default to 5000
     app.run(host='0.0.0.0', port=port, debug=True)
