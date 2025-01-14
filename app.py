@@ -52,31 +52,34 @@ def predict():
         wheelchair = request.form.get('wheelchair', 'no').lower()
         rating = float(request.form.get('rating', 0))
 
-        # Combine inputs for vectorization
-        input_text = f"{tags} {category} {cuisine_type} {amenities}"
-        logging.info(f"Inputs: {input_text}, Rating: {rating}, Wheelchair: {wheelchair}")
-
         # Load and filter dataset
-        data = pd.read_csv('mauritiusDataset.csv')
-        logging.info(f"Dataset loaded with {len(data)} rows.")
-
+        columns_to_load = ['name', 'category', 'rating', 'reviews_count', 'popularity_score', 
+                           'address', 'imageUrls', 'latitude', 'longitude', 'url', 'wheelchair_accessible']
+        data = pd.read_csv('mauritiusDataset.csv', usecols=columns_to_load)
         filtered_data = data[data['rating'] >= rating]
         if wheelchair == 'yes':
-            filtered_data = filtered_data[
-                filtered_data['wheelchair_accessible'].str.contains('yes', case=False, na=False)
-            ]
+            filtered_data = filtered_data[filtered_data['wheelchair_accessible'].str.contains('yes', case=False, na=False)]
         if filtered_data.empty:
             return jsonify({'error': 'No recommendations found.'}), 404
 
         # Vectorize input
+        input_text = f"{tags} {category} {cuisine_type} {amenities}"
         input_vec = vectorizer.transform([input_text]).todense()
+
+        # Prepare numerical data
         numerical_data = filtered_data[['rating', 'reviews_count', 'popularity_score']].fillna(0).to_numpy()
         input_vec_repeated = np.repeat(input_vec, numerical_data.shape[0], axis=0)
         combined_input = np.hstack([input_vec_repeated, numerical_data])
 
-        # Predict and sort recommendations
-        predictions = model.predict(combined_input)
-        filtered_data['score'] = predictions.flatten()
+        # Predict in batches
+        BATCH_SIZE = 100
+        predictions = []
+        for i in range(0, len(filtered_data), BATCH_SIZE):
+            batch = combined_input[i:i + BATCH_SIZE]
+            predictions.extend(model.predict(batch).flatten())
+
+        # Add scores and sort
+        filtered_data['score'] = predictions
         recommendations = filtered_data.sort_values(by='score', ascending=False).head(10)
 
         # Return results
@@ -88,7 +91,8 @@ def predict():
     except Exception as e:
         logging.error(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
-
+    
+    
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
